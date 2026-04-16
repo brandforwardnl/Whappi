@@ -1,6 +1,11 @@
-# Whappi
+<p align="center">
+  <img src="docs/screenshots/logo.jpg" alt="Whappi" width="400" />
+</p>
 
-WhatsApp sender microservice with admin dashboard. Sends messages via [Baileys](https://github.com/WhiskeySockets/Baileys) (unofficial WhatsApp protocol) and exposes a REST API for integration with your application.
+<p align="center">
+  <strong>WhatsApp sender microservice with admin dashboard.</strong><br/>
+  Sends messages via <a href="https://github.com/WhiskeySockets/Baileys">Baileys</a> (unofficial WhatsApp protocol) and exposes a REST API for integration with your application.
+</p>
 
 <p align="center">
   <img src="docs/screenshots/dashboard-light.png" alt="Dashboard — Light mode" width="49%" />
