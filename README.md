@@ -2,6 +2,11 @@
 
 WhatsApp sender microservice with admin dashboard. Sends messages via [Baileys](https://github.com/WhiskeySockets/Baileys) (unofficial WhatsApp protocol) and exposes a REST API for integration with your application.
 
+<p align="center">
+  <img src="docs/screenshots/dashboard-light.png" alt="Dashboard — Light mode" width="49%" />
+  <img src="docs/screenshots/dashboard-dark.png" alt="Dashboard — Dark mode" width="49%" />
+</p>
+
 ## Features
 
 - **REST API** — `POST /send` with queue, retries and rate limiting
@@ -16,7 +21,7 @@ WhatsApp sender microservice with admin dashboard. Sends messages via [Baileys](
 ## Quick Start
 
 ```bash
-git clone https://github.com/jouw-username/whappi.git
+git clone https://github.com/brandforwardnl/Whappi.git
 cd whappi
 ./setup.sh
 npm start
@@ -124,6 +129,14 @@ src/
   middleware/
     apiKey.ts       — x-api-key + IP allowlist validation
 ```
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Messages](docs/screenshots/messages.png) **Messages** — Full send history with filters, search and CSV export | ![Sessions](docs/screenshots/sessions.png) **Sessions** — Manage multiple WhatsApp numbers with QR pairing |
+| ![Settings](docs/screenshots/settings.png) **Settings** — API key, webhooks, rate limiting, IP allowlist | ![Content Filter](docs/screenshots/contentfilter.png) **Content Filter** — Block messages containing spam triggers |
+| ![Help & API](docs/screenshots/help.png) **Help & API** — Searchable docs with copyable code examples | |
 
 ## Risk
 

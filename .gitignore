@@ -8,6 +8,8 @@ data.db-shm
 .env
 *.log
 .DS_Store
+screenshots/
+!docs/screenshots/
 .claude/
 CLAUDE.md
 cookies.txt
