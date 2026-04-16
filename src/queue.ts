@@ -84,6 +84,9 @@ class SendQueue {
             at,
             session_id: job.session_id ?? whatsapp.getDefaultId() ?? null,
             direction: 'outgoing',
+            quoty_customer_id: job.quoty_customer_id,
+            metadata: job.metadata as Record<string, unknown> | undefined,
+            jid,
           });
           fireWebhook({
             event: 'message.sent',
@@ -117,6 +120,9 @@ class SendQueue {
               error: msg,
               session_id: job.session_id ?? whatsapp.getDefaultId() ?? null,
               direction: 'outgoing',
+              quoty_customer_id: job.quoty_customer_id,
+              metadata: job.metadata as Record<string, unknown> | undefined,
+              jid: normalizePhone(job.to),
             });
             fireWebhook({
               event: 'message.failed',

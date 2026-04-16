@@ -25,6 +25,9 @@ export interface RecentMessage {
   session_id?: string | null;
   direction: 'incoming' | 'outgoing';
   from?: string | null;
+  quoty_customer_id?: string | null;
+  metadata?: Record<string, unknown> | null;
+  jid?: string | null;
 }
 
 const SESSIONS_ROOT = path.resolve(process.cwd(), 'sessions');
@@ -104,11 +107,12 @@ class WhatsAppClient {
     });
 
     this.sock.ev.on('messages.upsert', (m) => {
-      console.log(`[whatsapp:${this.name}] messages.upsert: type=${m.type}, count=${m.messages.length}, keys=${JSON.stringify(m.messages.map(msg => ({ id: msg.key.id, fromMe: msg.key.fromMe, remoteJid: msg.key.remoteJid })))}`);
+      console.log(`[whatsapp:${this.name}] messages.upsert: type=${m.type}, count=${m.messages.length}, keys=${JSON.stringify(m.messages.map(msg => ({ id: msg.key.id, fromMe: msg.key.fromMe, remoteJid: msg.key.remoteJid, participant: msg.key.participant })))}`);
       for (const msg of m.messages) {
         if (msg.key.fromMe) continue;
         const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || null;
-        const from = msg.key.remoteJid || '';
+        // Use participant (group chats) or remoteJid (1:1 chats)
+        const from = msg.key.participant || msg.key.remoteJid || '';
         const messageId = msg.key.id || `recv_${Date.now()}`;
         const at = new Date().toISOString();
         console.log(JSON.stringify({
@@ -121,15 +125,20 @@ class WhatsAppClient {
         }));
         // Store in history
         const fromNumber = from.replace(/@.*$/, '');
+        // Lookup last outgoing message to this JID for context (quoty_customer_id, metadata)
+        const lastOutgoing = dbApi.findLastOutgoingByJid(from);
         dbApi.insertHistory({
           message_id: messageId,
-          to_number: '',
+          to_number: lastOutgoing?.to_number || '',
           status: 'received',
           at,
           error: null,
           session_id: this.id,
           direction: 'incoming',
           from_number: fromNumber,
+          quoty_customer_id: lastOutgoing?.quoty_customer_id ?? null,
+          metadata: lastOutgoing?.metadata ?? null,
+          jid: from,
         });
         emitUpdate();
         fireWebhook({
@@ -139,6 +148,9 @@ class WhatsAppClient {
           text,
           timestamp: typeof msg.messageTimestamp === 'number' ? msg.messageTimestamp : Number(msg.messageTimestamp) || null,
           at,
+          to_number: lastOutgoing?.to_number,
+          quoty_customer_id: lastOutgoing?.quoty_customer_id ?? undefined,
+          metadata: lastOutgoing?.metadata ? JSON.parse(lastOutgoing.metadata) : undefined,
         });
       }
     });
@@ -340,6 +352,9 @@ class WhatsAppManager {
       session_id: entry.session_id ?? null,
       direction: entry.direction,
       from_number: entry.from ?? null,
+      quoty_customer_id: entry.quoty_customer_id ?? null,
+      metadata: entry.metadata ? JSON.stringify(entry.metadata) : null,
+      jid: entry.jid ?? null,
     });
   }
   async start() {

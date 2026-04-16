@@ -71,6 +71,9 @@ addColumnIfMissing('queue_jobs', 'session_id', 'TEXT');
 addColumnIfMissing('messages_history', 'session_id', 'TEXT');
 addColumnIfMissing('messages_history', 'direction', "TEXT NOT NULL DEFAULT 'outgoing'");
 addColumnIfMissing('messages_history', 'from_number', 'TEXT');
+addColumnIfMissing('messages_history', 'quoty_customer_id', 'TEXT');
+addColumnIfMissing('messages_history', 'metadata', 'TEXT');
+addColumnIfMissing('messages_history', 'jid', 'TEXT');
 
 export interface DbJobRow {
   message_id: string;
@@ -92,6 +95,9 @@ export interface DbHistoryRow {
   session_id: string | null;
   direction: 'incoming' | 'outgoing';
   from_number: string | null;
+  quoty_customer_id: string | null;
+  metadata: string | null;
+  jid: string | null;
 }
 
 export interface DbSessionRow {
@@ -112,8 +118,8 @@ const selectAllJobsStmt = db.prepare(`SELECT * FROM queue_jobs ORDER BY created_
 const countJobsStmt = db.prepare(`SELECT COUNT(*) as c FROM queue_jobs`);
 
 const insertHistoryStmt = db.prepare(`
-  INSERT OR REPLACE INTO messages_history (message_id, to_number, status, at, error, session_id, direction, from_number)
-  VALUES (@message_id, @to_number, @status, @at, @error, @session_id, @direction, @from_number)
+  INSERT OR REPLACE INTO messages_history (message_id, to_number, status, at, error, session_id, direction, from_number, quoty_customer_id, metadata, jid)
+  VALUES (@message_id, @to_number, @status, @at, @error, @session_id, @direction, @from_number, @quoty_customer_id, @metadata, @jid)
 `);
 const selectRecentHistoryStmt = db.prepare(`
   SELECT * FROM messages_history ORDER BY at DESC LIMIT ?
@@ -148,13 +154,25 @@ const statsLast7Stmt = db.prepare(`
 export interface Totals { sent: number; failed: number; received: number; total: number; }
 export interface DayCount { day: string; c: number; }
 
+const findLastOutgoingByJidStmt = db.prepare(`
+  SELECT to_number, quoty_customer_id, metadata FROM messages_history
+  WHERE direction = 'outgoing' AND jid = ?
+  ORDER BY at DESC LIMIT 1
+`);
+
 export const dbApi = {
   insertJob: (row: Omit<DbJobRow, 'attempts' | 'created_at'>) => insertJobStmt.run(row),
   updateAttempts: (message_id: string, attempts: number) => updateAttemptsStmt.run(attempts, message_id),
   deleteJob: (message_id: string) => deleteJobStmt.run(message_id),
   allJobs: () => selectAllJobsStmt.all() as DbJobRow[],
   jobCount: () => (countJobsStmt.get() as { c: number }).c,
-  insertHistory: (row: DbHistoryRow) => insertHistoryStmt.run(row),
+  insertHistory: (row: DbHistoryRow) => insertHistoryStmt.run({
+    ...row,
+    quoty_customer_id: row.quoty_customer_id ?? null,
+    metadata: row.metadata ?? null,
+    jid: row.jid ?? null,
+  }),
+  findLastOutgoingByJid: (jid: string) => findLastOutgoingByJidStmt.get(jid) as { to_number: string; quoty_customer_id: string | null; metadata: string | null } | undefined,
   recentHistory: (limit = 50) => selectRecentHistoryStmt.all(limit) as DbHistoryRow[],
   searchHistory: (opts: { status?: 'sent' | 'failed' | 'all'; direction?: 'incoming' | 'outgoing' | 'all'; q?: string; limit: number; offset: number }) => {
     const where: string[] = [];
