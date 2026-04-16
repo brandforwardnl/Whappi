@@ -61,7 +61,7 @@ export function buildHelpPage(opts: {
       id: 'api-send',
       title: 'API: send a message',
       body: `
-        <p>Endpoint: <span class="mono">POST /api/send</span></p>
+        <p>Endpoint: <span class="mono">POST ${u}/api/send</span></p>
         <p><strong>Headers:</strong></p>
         <ul>
           <li><span class="mono">Content-Type: application/json</span></li>
@@ -77,22 +77,22 @@ export function buildHelpPage(opts: {
         </ul>
 
         <h4>Example: single message (curl)</h4>
-        ${code('bash', `curl -X POST /api/send \\
+        ${code('bash', `curl -X POST ${u}/api/send \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: ${k}" \\
   -d '{"to":"31612345678","message":"Hello from Whappi"}'`)}
 
         <h4>Example: one-liner (curl)</h4>
-        ${code('bash', `curl -X POST /api/send -H "Content-Type: application/json" -H "x-api-key: ${k}" -d '{"to":"31612345678","message":"Hello"}'`)}
+        ${code('bash', `curl -X POST ${u}/api/send -H "Content-Type: application/json" -H "x-api-key: ${k}" -d '{"to":"31612345678","message":"Hello"}'`)}
 
         <h4>Example: multiple recipients</h4>
-        ${code('bash', `curl -X POST /api/send \\
+        ${code('bash', `curl -X POST ${u}/api/send \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: ${k}" \\
   -d '{"to":["31612345678","31698765432"],"message":"Bulk message"}'`)}
 
         <h4>Example: specific session + metadata</h4>
-        ${code('bash', `curl -X POST /api/send \\
+        ${code('bash', `curl -X POST ${u}/api/send \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: ${k}" \\
   -d '{
