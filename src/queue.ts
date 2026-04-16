@@ -83,6 +83,7 @@ class SendQueue {
             status: 'sent',
             at,
             session_id: job.session_id ?? whatsapp.getDefaultId() ?? null,
+            direction: 'outgoing',
           });
           fireWebhook({
             event: 'message.sent',
@@ -115,6 +116,7 @@ class SendQueue {
               at,
               error: msg,
               session_id: job.session_id ?? whatsapp.getDefaultId() ?? null,
+              direction: 'outgoing',
             });
             fireWebhook({
               event: 'message.failed',

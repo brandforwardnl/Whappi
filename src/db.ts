@@ -69,6 +69,8 @@ function addColumnIfMissing(table: string, column: string, def: string) {
 }
 addColumnIfMissing('queue_jobs', 'session_id', 'TEXT');
 addColumnIfMissing('messages_history', 'session_id', 'TEXT');
+addColumnIfMissing('messages_history', 'direction', "TEXT NOT NULL DEFAULT 'outgoing'");
+addColumnIfMissing('messages_history', 'from_number', 'TEXT');
 
 export interface DbJobRow {
   message_id: string;
@@ -84,10 +86,12 @@ export interface DbJobRow {
 export interface DbHistoryRow {
   message_id: string;
   to_number: string;
-  status: 'sent' | 'failed';
+  status: 'sent' | 'failed' | 'received';
   at: string;
   error: string | null;
   session_id: string | null;
+  direction: 'incoming' | 'outgoing';
+  from_number: string | null;
 }
 
 export interface DbSessionRow {
@@ -108,8 +112,8 @@ const selectAllJobsStmt = db.prepare(`SELECT * FROM queue_jobs ORDER BY created_
 const countJobsStmt = db.prepare(`SELECT COUNT(*) as c FROM queue_jobs`);
 
 const insertHistoryStmt = db.prepare(`
-  INSERT OR REPLACE INTO messages_history (message_id, to_number, status, at, error, session_id)
-  VALUES (@message_id, @to_number, @status, @at, @error, @session_id)
+  INSERT OR REPLACE INTO messages_history (message_id, to_number, status, at, error, session_id, direction, from_number)
+  VALUES (@message_id, @to_number, @status, @at, @error, @session_id, @direction, @from_number)
 `);
 const selectRecentHistoryStmt = db.prepare(`
   SELECT * FROM messages_history ORDER BY at DESC LIMIT ?
@@ -119,6 +123,7 @@ const statsTotalsStmt = db.prepare(`
   SELECT
     SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as sent,
     SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+    SUM(CASE WHEN direction = 'incoming' THEN 1 ELSE 0 END) as received,
     COUNT(*) as total
   FROM messages_history
 `);
@@ -126,7 +131,8 @@ const statsTotalsStmt = db.prepare(`
 const statsTodayStmt = db.prepare(`
   SELECT
     SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as sent,
-    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
+    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+    SUM(CASE WHEN direction = 'incoming' THEN 1 ELSE 0 END) as received
   FROM messages_history
   WHERE substr(at, 1, 10) = date('now')
 `);
@@ -139,7 +145,7 @@ const statsLast7Stmt = db.prepare(`
   ORDER BY day ASC
 `);
 
-export interface Totals { sent: number; failed: number; total: number; }
+export interface Totals { sent: number; failed: number; received: number; total: number; }
 export interface DayCount { day: string; c: number; }
 
 export const dbApi = {
@@ -150,16 +156,20 @@ export const dbApi = {
   jobCount: () => (countJobsStmt.get() as { c: number }).c,
   insertHistory: (row: DbHistoryRow) => insertHistoryStmt.run(row),
   recentHistory: (limit = 50) => selectRecentHistoryStmt.all(limit) as DbHistoryRow[],
-  searchHistory: (opts: { status?: 'sent' | 'failed' | 'all'; q?: string; limit: number; offset: number }) => {
+  searchHistory: (opts: { status?: 'sent' | 'failed' | 'all'; direction?: 'incoming' | 'outgoing' | 'all'; q?: string; limit: number; offset: number }) => {
     const where: string[] = [];
     const params: any[] = [];
     if (opts.status && opts.status !== 'all') {
       where.push('status = ?');
       params.push(opts.status);
     }
+    if (opts.direction && opts.direction !== 'all') {
+      where.push('direction = ?');
+      params.push(opts.direction);
+    }
     if (opts.q) {
-      where.push('to_number LIKE ?');
-      params.push(`%${opts.q}%`);
+      where.push('(to_number LIKE ? OR from_number LIKE ?)');
+      params.push(`%${opts.q}%`, `%${opts.q}%`);
     }
     const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
     const rows = db
@@ -186,12 +196,12 @@ export const dbApi = {
       .run(attempts, `+${delaySec} seconds`, error, id),
   webhookCount: () => (db.prepare(`SELECT COUNT(*) as c FROM webhook_queue`).get() as { c: number }).c,
   totals: () => {
-    const r = statsTotalsStmt.get() as { sent: number | null; failed: number | null; total: number };
-    return { sent: r.sent || 0, failed: r.failed || 0, total: r.total || 0 } as Totals;
+    const r = statsTotalsStmt.get() as { sent: number | null; failed: number | null; received: number | null; total: number };
+    return { sent: r.sent || 0, failed: r.failed || 0, received: r.received || 0, total: r.total || 0 } as Totals;
   },
   today: () => {
-    const r = statsTodayStmt.get() as { sent: number | null; failed: number | null };
-    return { sent: r.sent || 0, failed: r.failed || 0 };
+    const r = statsTodayStmt.get() as { sent: number | null; failed: number | null; received: number | null };
+    return { sent: r.sent || 0, failed: r.failed || 0, received: r.received || 0 };
   },
   last7Days: () => statsLast7Stmt.all() as DayCount[],
 

@@ -19,10 +19,12 @@ export type ConnectionStatus = 'connecting' | 'open' | 'closed';
 export interface RecentMessage {
   message_id: string;
   to: string;
-  status: 'sent' | 'failed';
+  status: 'sent' | 'failed' | 'received';
   at: string;
   error?: string;
   session_id?: string | null;
+  direction: 'incoming' | 'outgoing';
+  from?: string | null;
 }
 
 const SESSIONS_ROOT = path.resolve(process.cwd(), 'sessions');
@@ -105,21 +107,37 @@ class WhatsAppClient {
       for (const msg of m.messages) {
         if (msg.key.fromMe) continue;
         const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || null;
+        const from = msg.key.remoteJid || '';
+        const messageId = msg.key.id || `recv_${Date.now()}`;
+        const at = new Date().toISOString();
         console.log(JSON.stringify({
           type: 'incoming',
           session_id: this.id,
-          from: msg.key.remoteJid,
-          id: msg.key.id,
+          from,
+          id: messageId,
           timestamp: msg.messageTimestamp,
           text,
         }));
+        // Store in history
+        const fromNumber = from.replace(/@.*$/, '');
+        dbApi.insertHistory({
+          message_id: messageId,
+          to_number: '',
+          status: 'received',
+          at,
+          error: null,
+          session_id: this.id,
+          direction: 'incoming',
+          from_number: fromNumber,
+        });
+        emitUpdate();
         fireWebhook({
           event: 'message.received',
-          from: msg.key.remoteJid || '',
-          message_id: msg.key.id || '',
+          from,
+          message_id: messageId,
           text,
           timestamp: typeof msg.messageTimestamp === 'number' ? msg.messageTimestamp : Number(msg.messageTimestamp) || null,
-          at: new Date().toISOString(),
+          at,
         });
       }
     });
@@ -307,6 +325,8 @@ class WhatsAppManager {
       at: r.at,
       error: r.error ?? undefined,
       session_id: r.session_id ?? undefined,
+      direction: r.direction || 'outgoing',
+      from: r.from_number ?? undefined,
     }));
   }
   recordRecent(entry: RecentMessage) {
@@ -317,6 +337,8 @@ class WhatsAppManager {
       at: entry.at,
       error: entry.error ?? null,
       session_id: entry.session_id ?? null,
+      direction: entry.direction,
+      from_number: entry.from ?? null,
     });
   }
   async start() {

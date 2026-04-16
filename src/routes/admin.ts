@@ -3,7 +3,7 @@ import cookie from '@fastify/cookie';
 import qrcode from 'qrcode';
 import { whatsapp } from '../whatsapp';
 import { queue } from '../queue';
-import { dbApi } from '../db';
+import { dbApi, DbHistoryRow } from '../db';
 import { settings, verifyPassword } from '../settings';
 import { bus, emitUpdate } from '../events';
 import { isLocked, recordFail, recordSuccess, lockedUntil } from '../loginGuard';
@@ -203,6 +203,8 @@ const THEME_CSS = `
     --shadow-card: 0 1px 2px rgba(15,23,42,0.04), 0 4px 16px -8px rgba(15,23,42,0.08);
     --pill-ok-bg: #dcfce7; --pill-ok-text: #15803d;
     --pill-fail-bg: #fee2e2; --pill-fail-text: #b91c1c;
+    --pill-in-bg: #dbeafe; --pill-in-text: #1d4ed8;
+    --pill-out-bg: #f3e8ff; --pill-out-text: #7c3aed;
     --status-ok: #22c55e; --status-warn: #f59e0b; --status-err: #ef4444;
     --table-stripe: #f8fafc;
   }
@@ -213,6 +215,8 @@ const THEME_CSS = `
     --shadow-card: 0 1px 2px rgba(0,0,0,0.2), 0 4px 16px -8px rgba(0,0,0,0.3);
     --pill-ok-bg: rgba(34,197,94,0.15); --pill-ok-text: #4ade80;
     --pill-fail-bg: rgba(239,68,68,0.15); --pill-fail-text: #fca5a5;
+    --pill-in-bg: rgba(59,130,246,0.15); --pill-in-text: #60a5fa;
+    --pill-out-bg: rgba(139,92,246,0.15); --pill-out-text: #a78bfa;
     --table-stripe: #1a2332;
   }
   @media (prefers-color-scheme: dark) {
@@ -463,18 +467,25 @@ export async function adminRoutes(app: FastifyInstance, opts: AdminOpts) {
     }
 
     const recentRows = recent.length === 0
-      ? `<tr><td colspan="5" class="empty">No messages sent yet.</td></tr>`
+      ? `<tr><td colspan="6" class="empty">No messages yet.</td></tr>`
       : recent
           .map((r) => {
             const time = new Date(r.at).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
-            const pill = r.status === 'sent'
+            const dirPill = r.direction === 'incoming'
+              ? `<span class="pill pill-in">↓ in</span>`
+              : `<span class="pill pill-out">↑ out</span>`;
+            const statusPill = r.status === 'sent'
               ? `<span class="pill pill-ok">sent</span>`
+              : r.status === 'received'
+              ? `<span class="pill pill-ok">received</span>`
               : `<span class="pill pill-fail">failed</span>`;
+            const number = r.direction === 'incoming' ? (r.from || '—') : r.to;
             return `
               <tr>
                 <td>${escapeHtml(time)}</td>
-                <td class="mono">${escapeHtml(r.to)}</td>
-                <td>${pill}</td>
+                <td>${dirPill}</td>
+                <td class="mono">${escapeHtml(number)}</td>
+                <td>${statusPill}</td>
                 <td class="mono small">${escapeHtml(r.message_id)}</td>
                 <td class="error">${escapeHtml(r.error || '')}</td>
               </tr>`;
@@ -562,6 +573,8 @@ export async function adminRoutes(app: FastifyInstance, opts: AdminOpts) {
     .pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
     .pill-ok { background: var(--pill-ok-bg); color: var(--pill-ok-text); }
     .pill-fail { background: var(--pill-fail-bg); color: var(--pill-fail-text); }
+    .pill-in { background: var(--pill-in-bg); color: var(--pill-in-text); }
+    .pill-out { background: var(--pill-out-bg); color: var(--pill-out-text); }
 
     .grid-actions { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; }
     label { display: block; font-size: 12px; font-weight: 600; color: var(--text-mid); margin-bottom: 6px; }
@@ -615,6 +628,11 @@ export async function adminRoutes(app: FastifyInstance, opts: AdminOpts) {
         <div class="stat-sub up">${today.failed} failed</div>
       </div>
       <div class="card">
+        <div class="stat-label">Received today</div>
+        <div class="stat-value">${today.received}</div>
+        <div class="stat-sub">${totals.received} all-time</div>
+      </div>
+      <div class="card">
         <div class="stat-label">Total sent</div>
         <div class="stat-value">${totals.sent}</div>
         <div class="stat-sub">all-time</div>
@@ -623,11 +641,6 @@ export async function adminRoutes(app: FastifyInstance, opts: AdminOpts) {
         <div class="stat-label">In queue</div>
         <div class="stat-value">${queueLen}</div>
         <div class="stat-sub">jobs in queue</div>
-      </div>
-      <div class="card">
-        <div class="stat-label">Total failed</div>
-        <div class="stat-value">${totals.failed}</div>
-        <div class="stat-sub down">after 3 retries</div>
       </div>
     </section>
 
@@ -673,7 +686,8 @@ export async function adminRoutes(app: FastifyInstance, opts: AdminOpts) {
         <thead>
           <tr>
             <th>Time</th>
-            <th>To</th>
+            <th>Dir</th>
+            <th>Number</th>
             <th>Status</th>
             <th>Message ID</th>
             <th>Error</th>
@@ -715,23 +729,30 @@ export async function adminRoutes(app: FastifyInstance, opts: AdminOpts) {
         .then(function(data) {
           var stats = document.querySelectorAll('.stat-value');
           if (stats[0]) stats[0].textContent = data.today.sent;
-          if (stats[1]) stats[1].textContent = data.totals.sent;
-          if (stats[2]) stats[2].textContent = data.queue_length;
-          if (stats[3]) stats[3].textContent = data.totals.failed;
-          var todaySub = document.querySelectorAll('.stat-sub')[0];
-          if (todaySub) todaySub.textContent = data.today.failed + ' failed';
+          if (stats[1]) stats[1].textContent = data.today.received;
+          if (stats[2]) stats[2].textContent = data.totals.sent;
+          if (stats[3]) stats[3].textContent = data.queue_length;
+          var subs = document.querySelectorAll('.stat-sub');
+          if (subs[0]) subs[0].textContent = data.today.failed + ' failed';
+          if (subs[1]) subs[1].textContent = data.totals.received + ' all-time';
           statusChip(data.whatsapp_status);
 
           var tbody = document.getElementById('recent-tbody');
           if (tbody) {
             if (data.recent.length === 0) {
-              tbody[H] = '<tr><td colspan="5" class="empty">No messages sent yet.</td></tr>';
+              tbody[H] = '<tr><td colspan="6" class="empty">No messages yet.</td></tr>';
             } else {
               tbody[H] = data.recent.map(function(r) {
-                var pill = r.status === 'sent'
+                var dirPill = r.direction === 'incoming'
+                  ? '<span class="pill pill-in">\u2193 in</span>'
+                  : '<span class="pill pill-out">\u2191 out</span>';
+                var statusPill = r.status === 'sent'
                   ? '<span class="pill pill-ok">sent</span>'
+                  : r.status === 'received'
+                  ? '<span class="pill pill-ok">received</span>'
                   : '<span class="pill pill-fail">failed</span>';
-                return '<tr><td>' + esc(fmt(r.at)) + '</td><td class="mono">' + esc(r.to) + '</td><td>' + pill + '</td><td class="mono small">' + esc(r.message_id) + '</td><td class="error">' + esc(r.error) + '</td></tr>';
+                var num = r.direction === 'incoming' ? (r.from || '\u2014') : r.to;
+                return '<tr><td>' + esc(fmt(r.at)) + '</td><td>' + dirPill + '</td><td class="mono">' + esc(num) + '</td><td>' + statusPill + '</td><td class="mono small">' + esc(r.message_id) + '</td><td class="error">' + esc(r.error) + '</td></tr>';
               }).join('');
             }
           }
@@ -896,6 +917,8 @@ ${THEME_SCRIPT}
     .pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
     .pill-ok { background: var(--pill-ok-bg); color: var(--pill-ok-text); }
     .pill-fail { background: var(--pill-fail-bg); color: var(--pill-fail-text); }
+    .pill-in { background: var(--pill-in-bg); color: var(--pill-in-text); }
+    .pill-out { background: var(--pill-out-bg); color: var(--pill-out-text); }
     .progress { height: 4px; background: var(--border-light); border-radius: 4px; overflow: hidden; margin-top: 18px; }
     .progress-bar { height: 100%; background: linear-gradient(90deg, #22c55e, #16a34a); border-radius: 4px; transition: width 0.5s ease; }
 
@@ -1276,28 +1299,31 @@ ${THEME_SCRIPT}
   });
 
   // GET /admin/messages
-  app.get<{ Querystring: { status?: string; q?: string; page?: string } }>('/admin/messages', async (req, reply) => {
+  app.get<{ Querystring: { status?: string; direction?: string; q?: string; page?: string } }>('/admin/messages', async (req, reply) => {
     if (!requireAuth(req, reply)) return;
     const status = (['sent', 'failed', 'all'].includes(req.query?.status || '') ? req.query!.status : 'all') as 'sent' | 'failed' | 'all';
+    const direction = (['incoming', 'outgoing', 'all'].includes(req.query?.direction || '') ? req.query!.direction : 'all') as 'incoming' | 'outgoing' | 'all';
     const q = (req.query?.q || '').trim();
     const page = Math.max(1, parseInt(req.query?.page || '1', 10) || 1);
     const limit = 100;
     const offset = (page - 1) * limit;
-    const { rows, total } = dbApi.searchHistory({ status, q, limit, offset });
+    const { rows, total } = dbApi.searchHistory({ status, direction, q, limit, offset });
     const totalPages = Math.max(1, Math.ceil(total / limit));
-    reply.type('text/html').send(messagesPage({ rows, total, page, totalPages, status, q }));
+    reply.type('text/html').send(messagesPage({ rows, total, page, totalPages, status, direction, q }));
   });
 
   // CSV export
-  app.get<{ Querystring: { status?: string; q?: string } }>('/admin/messages.csv', async (req, reply) => {
+  app.get<{ Querystring: { status?: string; direction?: string; q?: string } }>('/admin/messages.csv', async (req, reply) => {
     if (!requireAuth(req, reply)) return;
     const status = (['sent', 'failed', 'all'].includes(req.query?.status || '') ? req.query!.status : 'all') as 'sent' | 'failed' | 'all';
+    const direction = (['incoming', 'outgoing', 'all'].includes(req.query?.direction || '') ? req.query!.direction : 'all') as 'incoming' | 'outgoing' | 'all';
     const q = (req.query?.q || '').trim();
-    const { rows } = dbApi.searchHistory({ status, q, limit: 100000, offset: 0 });
+    const { rows } = dbApi.searchHistory({ status, direction, q, limit: 100000, offset: 0 });
     const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
-    const lines = ['at,to,status,message_id,error'];
+    const lines = ['at,direction,number,status,message_id,error'];
     for (const r of rows) {
-      lines.push([escape(r.at), escape(r.to_number), escape(r.status), escape(r.message_id), escape(r.error || '')].join(','));
+      const number = r.direction === 'incoming' ? (r.from_number || '') : r.to_number;
+      lines.push([escape(r.at), escape(r.direction || 'outgoing'), escape(number), escape(r.status), escape(r.message_id), escape(r.error || '')].join(','));
     }
     reply
       .header('Content-Type', 'text/csv; charset=utf-8')
@@ -1321,6 +1347,8 @@ ${THEME_SCRIPT}
       status: r.status,
       at: r.at,
       error: r.error || null,
+      direction: r.direction || 'outgoing',
+      from: r.from || null,
     }));
     reply.send({
       whatsapp_status: whatsapp.getStatus(),
@@ -1413,21 +1441,23 @@ ${THEME_SCRIPT}
 }
 
 interface MessagesPageOpts {
-  rows: { message_id: string; to_number: string; status: 'sent' | 'failed'; at: string; error: string | null }[];
+  rows: DbHistoryRow[];
   total: number;
   page: number;
   totalPages: number;
   status: 'sent' | 'failed' | 'all';
+  direction: 'incoming' | 'outgoing' | 'all';
   q: string;
 }
 
 function messagesPage(opts: MessagesPageOpts): string {
-  const { rows, total, page, totalPages, status, q } = opts;
+  const { rows, total, page, totalPages, status, direction, q } = opts;
 
-  const tabs = (['all', 'sent', 'failed'] as const)
+  const statusTabs = (['all', 'sent', 'failed'] as const)
     .map((s) => {
       const params = new URLSearchParams();
       if (s !== 'all') params.set('status', s);
+      if (direction !== 'all') params.set('direction', direction);
       if (q) params.set('q', q);
       const label = s === 'all' ? 'All' : s === 'sent' ? 'Sent' : 'Failed';
       const cls = s === status ? 'tab active' : 'tab';
@@ -1435,19 +1465,39 @@ function messagesPage(opts: MessagesPageOpts): string {
     })
     .join('');
 
+  const dirTabs = (['all', 'incoming', 'outgoing'] as const)
+    .map((d) => {
+      const params = new URLSearchParams();
+      if (status !== 'all') params.set('status', status);
+      if (d !== 'all') params.set('direction', d);
+      if (q) params.set('q', q);
+      const label = d === 'all' ? 'All' : d === 'incoming' ? '↓ Incoming' : '↑ Outgoing';
+      const cls = d === direction ? 'tab active' : 'tab';
+      return `<a class="${cls}" href="/admin/messages?${params.toString()}">${label}</a>`;
+    })
+    .join('');
+
   const tableRows = rows.length === 0
-    ? `<tr><td colspan="5" class="empty">No messages found.</td></tr>`
+    ? `<tr><td colspan="6" class="empty">No messages found.</td></tr>`
     : rows
         .map((r) => {
           const time = new Date(r.at).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' });
-          const pill = r.status === 'sent'
+          const dir = (r.direction || 'outgoing') as string;
+          const dirPill = dir === 'incoming'
+            ? `<span class="pill pill-in">↓ in</span>`
+            : `<span class="pill pill-out">↑ out</span>`;
+          const statusPill = r.status === 'sent'
             ? `<span class="pill pill-ok">sent</span>`
+            : r.status === 'received'
+            ? `<span class="pill pill-ok">received</span>`
             : `<span class="pill pill-fail">failed</span>`;
+          const number = dir === 'incoming' ? (r.from_number || '—') : r.to_number;
           return `
             <tr>
               <td>${escapeHtml(time)}</td>
-              <td class="mono">${escapeHtml(r.to_number)}</td>
-              <td>${pill}</td>
+              <td>${dirPill}</td>
+              <td class="mono">${escapeHtml(number)}</td>
+              <td>${statusPill}</td>
               <td class="mono small">${escapeHtml(r.message_id)}</td>
               <td class="error">${escapeHtml(r.error || '')}</td>
             </tr>`;
@@ -1457,6 +1507,7 @@ function messagesPage(opts: MessagesPageOpts): string {
   const pagerLink = (p: number, label: string, disabled = false) => {
     const params = new URLSearchParams();
     if (status !== 'all') params.set('status', status);
+    if (direction !== 'all') params.set('direction', direction);
     if (q) params.set('q', q);
     if (p > 1) params.set('page', String(p));
     return disabled
@@ -1513,6 +1564,8 @@ function messagesPage(opts: MessagesPageOpts): string {
     .pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
     .pill-ok { background: var(--pill-ok-bg); color: var(--pill-ok-text); }
     .pill-fail { background: var(--pill-fail-bg); color: var(--pill-fail-text); }
+    .pill-in { background: var(--pill-in-bg); color: var(--pill-in-text); }
+    .pill-out { background: var(--pill-out-bg); color: var(--pill-out-text); }
 
     .footer { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; }
     .count { color: var(--text-muted); font-size: 13px; }
@@ -1529,17 +1582,19 @@ function messagesPage(opts: MessagesPageOpts): string {
 
   <main class="main">
     <h1>Messages</h1>
-    <p class="sub">Complete send history with filtering and search.</p>
+    <p class="sub">Complete message history with filtering and search.</p>
 
     <div class="card">
       <div class="toolbar">
-        <div class="tabs">${tabs}</div>
+        <div class="tabs">${statusTabs}</div>
+        <div class="tabs">${dirTabs}</div>
         <form class="search" method="GET" action="/admin/messages">
           ${status !== 'all' ? `<input type="hidden" name="status" value="${status}" />` : ''}
+          ${direction !== 'all' ? `<input type="hidden" name="direction" value="${direction}" />` : ''}
           <input type="text" name="q" placeholder="Search by phone number…" value="${escapeHtml(q)}" />
           <button type="submit" class="btn btn-secondary">Search</button>
         </form>
-        <a class="btn btn-secondary" href="/admin/messages.csv?${new URLSearchParams({ ...(status !== 'all' ? { status } : {}), ...(q ? { q } : {}) }).toString()}" style="text-decoration:none;display:inline-block;">Export CSV</a>
+        <a class="btn btn-secondary" href="/admin/messages.csv?${new URLSearchParams({ ...(status !== 'all' ? { status } : {}), ...(direction !== 'all' ? { direction } : {}), ...(q ? { q } : {}) }).toString()}" style="text-decoration:none;display:inline-block;">Export CSV</a>
         <form method="POST" action="/admin/messages/clear" onsubmit="return confirm('Delete all messages? This cannot be undone.');">
           <button type="submit" class="btn btn-danger">Clear log</button>
         </form>
@@ -1549,7 +1604,8 @@ function messagesPage(opts: MessagesPageOpts): string {
         <thead>
           <tr>
             <th>Time</th>
-            <th>To</th>
+            <th>Dir</th>
+            <th>Number</th>
             <th>Status</th>
             <th>Message ID</th>
             <th>Error</th>
