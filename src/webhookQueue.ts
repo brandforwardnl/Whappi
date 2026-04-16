@@ -12,7 +12,9 @@ function backoffSeconds(attempts: number): number {
 }
 
 export function enqueueWebhook(payload: object): void {
-  if (!settings.getWebhookUrl()) return;
+  const url = settings.getWebhookUrl();
+  console.log(`[webhook] enqueue: url=${url ? 'set' : 'EMPTY'}, event=${(payload as any).event}`);
+  if (!url) return;
   dbApi.webhookEnqueue(JSON.stringify(payload));
 }
 
@@ -28,6 +30,7 @@ async function processOne(job: { id: number; payload: string; attempts: number }
   const signaturePayload = `${timestamp}.${job.payload}`;
   const signature = createHmac('sha256', apiKey).update(signaturePayload).digest('hex');
 
+  console.log(`[webhook] sending to ${url}: ${job.payload.substring(0, 120)}`);
   try {
     const res = await fetch(url, {
       method: 'POST',
