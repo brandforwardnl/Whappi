@@ -12,7 +12,7 @@ import { randomBytes } from 'crypto';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
-const PKG_VERSION = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf-8')).version as string;
+const PKG_VERSION = JSON.parse(readFileSync(resolve(__dirname, '../../package.json'), 'utf-8')).version as string;
 
 interface AdminOpts {
   secret: string;
