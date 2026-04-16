@@ -356,7 +356,7 @@ pm2 set pm2-logrotate:retain 7`)}
         <h4>Monitoring</h4>
         <p>Use <span class="mono">GET /api/healthz</span> (no auth required) with your monitoring tool. Returns <span class="mono">200</span> when WhatsApp is connected, <span class="mono">503</span> when offline.</p>
         ${code('bash', `# Simple cron check (every 5 minutes)
-*/5 * * * * curl -sf http://localhost:3100/healthz || echo "Whappi down" | mail -s "Alert" you@example.com`)}
+*/5 * * * * curl -sf ${u}/api/healthz || echo "Whappi down" | mail -s "Alert" you@example.com`)}
       `,
     },
     {
