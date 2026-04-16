@@ -9,6 +9,10 @@ import { bus, emitUpdate } from '../events';
 import { isLocked, recordFail, recordSuccess, lockedUntil } from '../loginGuard';
 import { buildHelpPage } from './helpPage';
 import { randomBytes } from 'crypto';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+
+const PKG_VERSION = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf-8')).version as string;
 
 interface AdminOpts {
   secret: string;
@@ -121,6 +125,7 @@ function renderSidebar(active: NavKey, currentUser: string): string {
       <form method="POST" action="/logout">
         <button type="submit" class="logout-btn">${icons.logout}Log out (${escapeHtml(currentUser)})</button>
       </form>
+      <div class="version-label">v${PKG_VERSION}</div>
     </div>
   </aside>
   <button class="mobile-menu-btn" type="button" aria-label="Menu" onclick="document.querySelector('.sidebar').classList.toggle('open');document.querySelector('.mobile-backdrop').classList.toggle('show');">
@@ -148,6 +153,7 @@ const SIDEBAR_CSS = `
   .logout-btn { width: 100%; display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: transparent; border: none; cursor: pointer; color: #cbd5e1; font-family: inherit; font-size: 11px; font-weight: 500; text-align: left; opacity: 0.7; transition: opacity 0.15s; }
   .logout-btn:hover { opacity: 1; }
   .logout-btn svg { width: 13px; height: 13px; }
+  .version-label { font-size: 10px; color: #475569; opacity: 0.5; padding: 4px 12px 0; }
   .mobile-menu-btn { display: none; position: fixed; top: 14px; left: 14px; z-index: 100; width: 42px; height: 42px; border-radius: 10px; background: #0f172a; color: #fff; border: 1px solid rgba(255,255,255,0.08); cursor: pointer; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(15,23,42,0.2); }
   .mobile-menu-btn svg { width: 20px; height: 20px; }
   .mobile-backdrop { display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.5); z-index: 90; }
@@ -755,7 +761,13 @@ ${THEME_SCRIPT}
       reply.code(400).send('No valid numbers found. <a href="/admin">Back</a>');
       return;
     }
+    const blockedWord = dbApi.checkContent(message);
+    if (blockedWord) {
+      reply.code(400).send(`Message blocked by content filter: "${escapeHtml(blockedWord)}". <a href="/admin">Back</a>`);
+      return;
+    }
     for (const to of numbers) {
+      if (dbApi.isBlocked(to)) continue;
       queue.enqueue({ to, message });
     }
     settings.setLastTestNumber(numbers.join('\n'));
