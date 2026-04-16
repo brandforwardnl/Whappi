@@ -125,7 +125,6 @@ function renderSidebar(active: NavKey, currentUser: string): string {
       <form method="POST" action="/logout">
         <button type="submit" class="logout-btn">${icons.logout}Log out (${escapeHtml(currentUser)})</button>
       </form>
-      <div class="version-label">v${PKG_VERSION}</div>
     </div>
   </aside>
   <button class="mobile-menu-btn" type="button" aria-label="Menu" onclick="document.querySelector('.sidebar').classList.toggle('open');document.querySelector('.mobile-backdrop').classList.toggle('show');">
@@ -153,7 +152,8 @@ const SIDEBAR_CSS = `
   .logout-btn { width: 100%; display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: transparent; border: none; cursor: pointer; color: #cbd5e1; font-family: inherit; font-size: 11px; font-weight: 500; text-align: left; opacity: 0.7; transition: opacity 0.15s; }
   .logout-btn:hover { opacity: 1; }
   .logout-btn svg { width: 13px; height: 13px; }
-  .version-label { font-size: 10px; color: #475569; opacity: 0.5; padding: 4px 12px 0; }
+  .version-footer { text-align: center; padding: 40px 0 20px; font-size: 12px; color: var(--text-light); }
+  .version-footer span { background: var(--bg-card); border: 1px solid var(--border); padding: 4px 14px; border-radius: 999px; font-weight: 500; }
   .mobile-menu-btn { display: none; position: fixed; top: 14px; left: 14px; z-index: 100; width: 42px; height: 42px; border-radius: 10px; background: #0f172a; color: #fff; border: 1px solid rgba(255,255,255,0.08); cursor: pointer; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(15,23,42,0.2); }
   .mobile-menu-btn svg { width: 20px; height: 20px; }
   .mobile-backdrop { display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.5); z-index: 90; }
@@ -676,6 +676,7 @@ export async function adminRoutes(app: FastifyInstance, opts: AdminOpts) {
         <tbody id="recent-tbody">${recentRows}</tbody>
       </table>
     </section>
+    <div class="version-footer"><span>Whappi v${PKG_VERSION}</span></div>
   </main>
 
   <style>
@@ -935,6 +936,7 @@ ${THEME_SCRIPT}
         <tbody>${rows}</tbody>
       </table>
     </div>
+    <div class="version-footer"><span>Whappi v${PKG_VERSION}</span></div>
   </main>
 
   <script>
@@ -1041,6 +1043,7 @@ ${THEME_SCRIPT}
       </table>
       <div class="count">${filters.length} ${filters.length === 1 ? 'filter' : 'filters'} active</div>
     </div>
+    <div class="version-footer"><span>Whappi v${PKG_VERSION}</span></div>
   </main>
 </body>
 </html>`);
@@ -1194,6 +1197,7 @@ ${THEME_SCRIPT}
       </table>
       <div class="count">${list.length} ${list.length === 1 ? 'number' : 'numbers'} blocked</div>
     </div>
+    <div class="version-footer"><span>Whappi v${PKG_VERSION}</span></div>
   </main>
 </body>
 </html>`);
@@ -1557,6 +1561,7 @@ function messagesPage(opts: MessagesPageOpts): string {
         </div>
       </div>
     </div>
+    <div class="version-footer"><span>Whappi v${PKG_VERSION}</span></div>
   </main>
   <script>
   (function() {
@@ -1650,6 +1655,7 @@ function sessionsPage(cardsHtml: string): string {
     </div>
 
     <div class="grid">${cardsHtml || '<p class="sub">No sessions yet.</p>'}</div>
+    <div class="version-footer"><span>Whappi v${PKG_VERSION}</span></div>
   </main>
   <script>
   (function() {
@@ -1800,6 +1806,7 @@ function settingsPage(opts: { ok?: string; err?: string }): string {
         <button type="submit" class="btn btn-primary">Save</button>
       </div>
     </form>
+    <div class="version-footer"><span>Whappi v${PKG_VERSION}</span></div>
   </main>
 ${THEME_SCRIPT}
 </body>
