@@ -32,23 +32,36 @@ async function main() {
   const app = Fastify({ logger: { level: 'info' } });
   await app.register(formbody);
 
-  // Healthcheck (no auth) - for monitoring/load balancers
-  app.get('/healthz', async (_req, reply) => {
-    const status = whatsapp.getStatus();
-    const ok = status === 'open';
-    reply.code(ok ? 200 : 503).send({
-      ok,
-      whatsapp: status,
-      uptime_seconds: Math.floor(process.uptime()),
-    });
+  // Homepage → redirect to admin/login
+  app.get('/', async (_req, reply) => {
+    reply.redirect('/admin');
   });
 
-  // API routes (x-api-key) - reads live from settings
-  await app.register(async (api) => {
-    api.addHook('onRequest', apiKeyGuard(() => settings.getApiKey(), () => settings.getApiIpAllowlist()));
-    await sendRoutes(api);
-    await statusRoutes(api);
-  });
+  // API routes under /api/ prefix
+  await app.register(async (apiScope) => {
+    // Healthcheck (no auth) - for monitoring/load balancers
+    apiScope.get('/healthz', async (_req, reply) => {
+      const status = whatsapp.getStatus();
+      const ok = status === 'open';
+      reply.code(ok ? 200 : 503).send({
+        ok,
+        whatsapp: status,
+        uptime_seconds: Math.floor(process.uptime()),
+      });
+    });
+
+    // Authenticated API routes (x-api-key)
+    await apiScope.register(async (authed) => {
+      authed.addHook('onRequest', apiKeyGuard(() => settings.getApiKey(), () => settings.getApiIpAllowlist()));
+      await sendRoutes(authed);
+      await statusRoutes(authed);
+    });
+  }, { prefix: '/api' });
+
+  // Legacy routes (backwards compatibility) — redirect to /api/
+  app.get('/healthz', async (_req, reply) => { reply.redirect(301, '/api/healthz'); });
+  app.all('/send', async (_req, reply) => { reply.redirect(307, '/api/send'); });
+  app.get('/status', async (_req, reply) => { reply.redirect(301, '/api/status'); });
 
   // Admin routes (cookie session via login) - own plugin scope
   await app.register(async (admin) => {

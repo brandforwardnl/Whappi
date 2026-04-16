@@ -1002,7 +1002,7 @@ ${THEME_SCRIPT}
 
   <main class="main">
     <h1>Content filter</h1>
-    <p class="sub">Messages containing these words/phrases will be rejected by <span class="mono">/send</span>. Case-insensitive substring match.</p>
+    <p class="sub">Messages containing these words/phrases will be rejected by <span class="mono">/api/send</span>. Case-insensitive substring match.</p>
 
     <div class="card">
       <h3>Add filter</h3>
@@ -1161,7 +1161,7 @@ ${THEME_SCRIPT}
 
   <main class="main">
     <h1>Blocklist</h1>
-    <p class="sub">Numbers on this list will be rejected by <span class="mono">/send</span>. Whappi will not send messages to blocked numbers.</p>
+    <p class="sub">Numbers on this list will be rejected by <span class="mono">/api/send</span>. Whappi will not send messages to blocked numbers.</p>
 
     <div class="card">
       <h3>Block number</h3>
@@ -1727,7 +1727,7 @@ function settingsPage(opts: { ok?: string; err?: string }): string {
 
       <div class="card">
         <h3>API key</h3>
-        <p class="help">Used for the <span class="mono">x-api-key</span> header on <span class="mono">/send</span> and <span class="mono">/status</span>. Min. 32 characters.</p>
+        <p class="help">Used for the <span class="mono">x-api-key</span> header on <span class="mono">/api/send</span> and <span class="mono">/api/status</span>. Min. 32 characters.</p>
         <div class="field">
           <label>Current key</label>
           <div class="row">
@@ -1771,7 +1771,7 @@ function settingsPage(opts: { ok?: string; err?: string }): string {
 
       <div class="card">
         <h3>API IP allowlist</h3>
-        <p class="help">Comma-separated list of IPs allowed to call <span class="mono">/send</span> and <span class="mono">/status</span>. Empty = anyone with a valid API key.</p>
+        <p class="help">Comma-separated list of IPs allowed to call <span class="mono">/api/send</span> and <span class="mono">/api/status</span>. Empty = anyone with a valid API key.</p>
         <div class="field">
           <label>Allowed IPs</label>
           <input type="text" name="api_ip_allowlist" placeholder="1.2.3.4, 5.6.7.8" value="${escapeHtml(settings.getApiIpAllowlist())}" />

@@ -61,7 +61,7 @@ export function buildHelpPage(opts: {
       id: 'api-send',
       title: 'API: send a message',
       body: `
-        <p>Endpoint: <span class="mono">POST ${u}/send</span></p>
+        <p>Endpoint: <span class="mono">POST /api/send</span></p>
         <p><strong>Headers:</strong></p>
         <ul>
           <li><span class="mono">Content-Type: application/json</span></li>
@@ -77,22 +77,22 @@ export function buildHelpPage(opts: {
         </ul>
 
         <h4>Example: single message (curl)</h4>
-        ${code('bash', `curl -X POST ${u}/send \\
+        ${code('bash', `curl -X POST /api/send \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: ${k}" \\
   -d '{"to":"31612345678","message":"Hello from Whappi"}'`)}
 
         <h4>Example: one-liner (curl)</h4>
-        ${code('bash', `curl -X POST ${u}/send -H "Content-Type: application/json" -H "x-api-key: ${k}" -d '{"to":"31612345678","message":"Hello"}'`)}
+        ${code('bash', `curl -X POST /api/send -H "Content-Type: application/json" -H "x-api-key: ${k}" -d '{"to":"31612345678","message":"Hello"}'`)}
 
         <h4>Example: multiple recipients</h4>
-        ${code('bash', `curl -X POST ${u}/send \\
+        ${code('bash', `curl -X POST /api/send \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: ${k}" \\
   -d '{"to":["31612345678","31698765432"],"message":"Bulk message"}'`)}
 
         <h4>Example: specific session + metadata</h4>
-        ${code('bash', `curl -X POST ${u}/send \\
+        ${code('bash', `curl -X POST /api/send \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: ${k}" \\
   -d '{
@@ -104,7 +104,7 @@ export function buildHelpPage(opts: {
   }'`)}
 
         <h4>Example: Node.js / Next.js (fetch)</h4>
-        ${code('javascript', `const res = await fetch('${u}/send', {
+        ${code('javascript', `const res = await fetch('${u}/api/send', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -132,7 +132,7 @@ $opts = [
   ],
 ];
 $ctx = stream_context_create($opts);
-$response = json_decode(file_get_contents('${u}/send', false, $ctx), true);`)}
+$response = json_decode(file_get_contents('${u}/api/send', false, $ctx), true);`)}
 
         <h4>Response</h4>
         ${code('json', `{ "queued": true, "message_id": "msg_a1b2c3d4-..." }`)}
@@ -144,13 +144,13 @@ $response = json_decode(file_get_contents('${u}/send', false, $ctx), true);`)}
       id: 'api-status',
       title: 'API: status & healthcheck',
       body: `
-        <h4>GET /status (requires x-api-key)</h4>
-        ${code('bash', `curl ${u}/status -H "x-api-key: ${k}"`)}
+        <h4>GET /api/status (requires x-api-key)</h4>
+        ${code('bash', `curl ${u}/api/status -H "x-api-key: ${k}"`)}
         ${code('json', `{ "whatsapp": "open", "queue_length": 0, "uptime_seconds": 3600 }`)}
 
-        <h4>GET /healthz (public, no auth)</h4>
+        <h4>GET /api/healthz (public, no auth)</h4>
         <p>Suitable for monitoring / load balancers. Returns <span class="mono">200</span> when WhatsApp is connected, otherwise <span class="mono">503</span>.</p>
-        ${code('bash', `curl ${u}/healthz`)}
+        ${code('bash', `curl ${u}/api/healthz`)}
         ${code('json', `{ "ok": true, "whatsapp": "open", "uptime_seconds": 3600 }`)}
       `,
     },
@@ -241,6 +241,122 @@ export async function POST(req: NextRequest) {
         <p>After 5 failed login attempts, the IP is blocked for 15 minutes from the admin dashboard.</p>
         <h4>Cookie session</h4>
         <p>Admin login uses an HttpOnly signed cookie (valid for 7 days). No more Basic Auth.</p>
+      `,
+    },
+    {
+      id: 'best-practices',
+      title: 'Best practices — avoiding WhatsApp bans',
+      body: `
+        <p>Baileys uses an unofficial WhatsApp protocol. WhatsApp monitors usage patterns and can permanently ban your number. These best practices minimize that risk.</p>
+
+        <h4>New number warm-up</h4>
+        <ol>
+          <li>Start with a number that has been used for personal messaging for at least a few days</li>
+          <li>Week 1: send max <strong>10–20 messages/day</strong> to known contacts only</li>
+          <li>Week 2–3: gradually increase to <strong>50–100/day</strong></li>
+          <li>Week 4+: scale to your target volume, but stay below <strong>500/day</strong> per number</li>
+          <li>Never jump from 0 to hundreds of messages on a new number</li>
+        </ol>
+
+        <h4>Content rules</h4>
+        <ul>
+          <li><strong>Only transactional messages</strong> — quotes, order updates, appointment confirmations, status notifications. Never bulk marketing or cold outreach</li>
+          <li><strong>Personalize content</strong> — include the recipient's name, order number, or relevant context. Identical messages to many numbers trigger spam detection</li>
+          <li><strong>No shortened URLs</strong> — avoid bit.ly, tinyurl, etc. Use your own domain</li>
+          <li><strong>No suspicious keywords</strong> — Whappi's <a href="/admin/filters">content filter</a> blocks common triggers, but also avoid excessive use of capitals, emojis, or urgency language</li>
+          <li><strong>Keep messages concise</strong> — one clear piece of information per message</li>
+        </ul>
+
+        <h4>Recipient rules</h4>
+        <ul>
+          <li><strong>Only message people who know you</strong> — existing customers, leads who opted in, people expecting your message</li>
+          <li><strong>Never scrape or buy phone lists</strong> — this is the fastest way to get banned</li>
+          <li><strong>Honor opt-outs immediately</strong> — if someone says "stop", add them to the <a href="/admin/blocklist">blocklist</a> and stop messaging</li>
+          <li><strong>Verify numbers before sending</strong> — invalid numbers increase your error rate, which WhatsApp notices</li>
+        </ul>
+
+        <h4>Technical safeguards (built into Whappi)</h4>
+        <ul>
+          <li><strong>Queue delay</strong> — configurable seconds between each message (<a href="/admin/settings">Settings</a>). Default 5s. Don't go below 2s</li>
+          <li><strong>Recipient throttle</strong> — prevents sending to the same number more than once per X seconds. Default 60s</li>
+          <li><strong>Burst limit</strong> — max messages per minute. Default 30</li>
+          <li><strong>Content filter</strong> — auto-blocks messages with spam/phishing keywords</li>
+          <li><strong>Number blocklist</strong> — prevent sending to specific numbers</li>
+        </ul>
+
+        <h4>Recommended Whappi settings for safety</h4>
+        <table>
+          <tr><th>Setting</th><th>Conservative</th><th>Moderate</th><th>Aggressive (risky)</th></tr>
+          <tr><td>Queue delay</td><td>10s</td><td>5s</td><td>2s</td></tr>
+          <tr><td>Recipient throttle</td><td>300s (5min)</td><td>60s</td><td>30s</td></tr>
+          <tr><td>Burst limit</td><td>10/min</td><td>30/min</td><td>60/min</td></tr>
+          <tr><td>Daily volume per number</td><td>50</td><td>200</td><td>500+</td></tr>
+        </table>
+
+        <h4>Warning signs that you're at risk</h4>
+        <ul>
+          <li>Frequent <span class="mono">message.failed</span> errors — recipients may not have WhatsApp or have blocked you</li>
+          <li>Sudden disconnections — WhatsApp may be throttling or warning your session</li>
+          <li>Recipients reporting your messages as spam — even a few reports can trigger a ban</li>
+        </ul>
+
+        <h4>What to do if you get banned</h4>
+        <ol>
+          <li>The number is likely permanently banned — there is no reliable appeal process for Baileys-based sending</li>
+          <li>Switch to a new number, warm it up slowly</li>
+          <li>Review your sending patterns and content to find the cause</li>
+          <li>For production at scale: consider migrating to the <strong>official WhatsApp Business API</strong> (via providers like 360dialog, Bird, or Twilio) which is sanctioned by Meta</li>
+        </ol>
+      `,
+    },
+    {
+      id: 'deployment',
+      title: 'Deployment with PM2',
+      body: `
+        <p>PM2 is a process manager for Node.js that keeps Whappi running, restarts it after crashes, and auto-starts on server reboot.</p>
+
+        <h4>Installation</h4>
+        ${code('bash', `npm install -g pm2`)}
+
+        <h4>Start Whappi with PM2</h4>
+        ${code('bash', `pm2 start ecosystem.config.js`)}
+        <p>Or manually:</p>
+        ${code('bash', `pm2 start dist/index.js --name whappi`)}
+        <p><strong>Note:</strong> PM2 does not load <span class="mono">.env</span> files by default. The <span class="mono">ecosystem.config.js</span> includes the environment variables. Alternatively, source the env file first:</p>
+        ${code('bash', `pm2 start dist/index.js --name whappi --node-args="--env-file=.env"`)}
+
+        <h4>Auto-start on server reboot</h4>
+        ${code('bash', `pm2 save          # save current process list
+pm2 startup       # generates the startup command for your OS
+                  # run the command it prints (sudo may be required)`)}
+
+        <h4>Useful commands</h4>
+        ${code('bash', `pm2 status                    # overview of all processes
+pm2 logs whappi               # live logs (stdout + stderr)
+pm2 logs whappi --lines 200   # last 200 log lines
+pm2 restart whappi            # restart the service
+pm2 stop whappi               # stop without removing
+pm2 delete whappi             # stop and remove from PM2
+pm2 monit                     # interactive monitoring dashboard`)}
+
+        <h4>ecosystem.config.js</h4>
+        <p>The included config file sets:</p>
+        <ul>
+          <li><strong>restart_delay: 5000</strong> — 5 seconds between restart attempts</li>
+          <li><strong>max_restarts: 10</strong> — gives up after 10 consecutive crashes</li>
+          <li><strong>NODE_ENV: production</strong></li>
+        </ul>
+        <p>You can customize this file for log rotation, cluster mode (not recommended for Baileys), or environment-specific settings.</p>
+
+        <h4>Log rotation</h4>
+        ${code('bash', `pm2 install pm2-logrotate
+pm2 set pm2-logrotate:max_size 10M
+pm2 set pm2-logrotate:retain 7`)}
+
+        <h4>Monitoring</h4>
+        <p>Use <span class="mono">GET /api/healthz</span> (no auth required) with your monitoring tool. Returns <span class="mono">200</span> when WhatsApp is connected, <span class="mono">503</span> when offline.</p>
+        ${code('bash', `# Simple cron check (every 5 minutes)
+*/5 * * * * curl -sf http://localhost:3100/healthz || echo "Whappi down" | mail -s "Alert" you@example.com`)}
       `,
     },
     {

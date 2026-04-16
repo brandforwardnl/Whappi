@@ -49,10 +49,10 @@ npm start
 
 ## API
 
-### POST /send
+### POST /api/send
 
 ```bash
-curl -X POST http://localhost:3100/send \
+curl -X POST http://localhost:3100/api/send \
   -H "Content-Type: application/json" \
   -H "x-api-key: <YOUR_API_KEY>" \
   -d '{"to":"31612345678","message":"Hallo!"}'
@@ -69,15 +69,15 @@ curl -X POST http://localhost:3100/send \
 
 **Response:** `{ "queued": true, "message_id": "msg_..." }`
 
-### GET /status
+### GET /api/status
 
-Requires `x-api-key` header.
+Requires `x-api-key` header. All API endpoints are under `/api/`.
 
 ```json
 { "whatsapp": "open", "queue_length": 0, "uptime_seconds": 3600 }
 ```
 
-### GET /healthz
+### GET /api/healthz
 
 Public (no auth). `200` if WhatsApp connected, `503` if offline.
 
