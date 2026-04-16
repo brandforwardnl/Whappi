@@ -1,6 +1,6 @@
 {
   "name": "quoty-whatsapp-service",
-  "version": "1.2.3",
+  "version": "1.3.0",
   "private": true,
   "description": "Quoty WhatsApp Sender Service - centrale WhatsApp-verzender via Baileys",
   "main": "dist/index.js",

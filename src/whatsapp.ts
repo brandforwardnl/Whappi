@@ -104,14 +104,23 @@ class WhatsAppClient {
     this.sock.ev.on('messages.upsert', (m) => {
       for (const msg of m.messages) {
         if (msg.key.fromMe) continue;
+        const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || null;
         console.log(JSON.stringify({
           type: 'incoming',
           session_id: this.id,
           from: msg.key.remoteJid,
           id: msg.key.id,
           timestamp: msg.messageTimestamp,
-          text: msg.message?.conversation || msg.message?.extendedTextMessage?.text || null,
+          text,
         }));
+        fireWebhook({
+          event: 'message.received',
+          from: msg.key.remoteJid || '',
+          message_id: msg.key.id || '',
+          text,
+          timestamp: typeof msg.messageTimestamp === 'number' ? msg.messageTimestamp : Number(msg.messageTimestamp) || null,
+          at: new Date().toISOString(),
+        });
       }
     });
   }
