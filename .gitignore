@@ -1,0 +1,14 @@
+node_modules
+dist
+sessions
+data.db
+data.db-journal
+data.db-wal
+data.db-shm
+.env
+*.log
+.DS_Store
+.claude/
+CLAUDE.md
+cookies.txt
+*.output
