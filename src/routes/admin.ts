@@ -385,6 +385,12 @@ export async function adminRoutes(app: FastifyInstance, opts: AdminOpts) {
     return unsigned.valid && unsigned.value === settings.getAdminUser();
   }
 
+  // Prevent Cloudflare/browser from caching HTML responses
+  app.addHook('onRequest', async (_req, reply) => {
+    reply.header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    reply.header('Pragma', 'no-cache');
+  });
+
   function requireAuth(req: FastifyRequest, reply: FastifyReply): boolean {
     if (isAuthed(req)) return true;
     reply.redirect('/login');
