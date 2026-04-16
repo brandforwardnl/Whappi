@@ -29,7 +29,7 @@ async function main() {
   // Seed settings from .env on first start
   initSettings({ adminUser, adminPassword, apiKey });
 
-  const app = Fastify({ logger: { level: 'info' } });
+  const app = Fastify({ logger: { level: 'info' }, trustProxy: true });
   await app.register(formbody);
 
   // Homepage → redirect to admin/login
