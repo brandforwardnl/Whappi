@@ -104,6 +104,7 @@ class WhatsAppClient {
     });
 
     this.sock.ev.on('messages.upsert', (m) => {
+      console.log(`[whatsapp:${this.name}] messages.upsert: type=${m.type}, count=${m.messages.length}, keys=${JSON.stringify(m.messages.map(msg => ({ id: msg.key.id, fromMe: msg.key.fromMe, remoteJid: msg.key.remoteJid })))}`);
       for (const msg of m.messages) {
         if (msg.key.fromMe) continue;
         const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || null;
