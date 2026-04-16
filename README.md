@@ -95,10 +95,55 @@ Headers: `x-whappi-timestamp` + `x-whappi-signature` (HMAC over `{timestamp}.{bo
 
 ```bash
 npm install -g pm2
-pm2 start ecosystem.config.js
-pm2 save
-pm2 startup
 ```
+
+**Start Whappi:**
+
+```bash
+# Option 1: source .env and start (recommended)
+bash -c 'source .env && export PORT INTERNAL_API_KEY ADMIN_USER ADMIN_PASSWORD NODE_ENV && pm2 start dist/index.js --name whappi'
+
+# Option 2: using --env-file (Node.js 20.6+, some PM2 versions may not pass this correctly)
+pm2 start ecosystem.config.js --node-args="--env-file=.env"
+```
+
+**Persist across reboots:**
+
+```bash
+pm2 save
+pm2 startup    # run the command it prints (may require sudo)
+```
+
+**Useful commands:**
+
+```bash
+pm2 status                    # overview of all processes
+pm2 logs whappi               # live logs
+pm2 logs whappi --lines 50    # last 50 log lines
+pm2 restart whappi            # restart
+pm2 monit                     # interactive monitoring
+```
+
+### Reverse proxy (nginx)
+
+If you run Whappi behind nginx, replace the default `location /` block:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:3100;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;
+    proxy_cache off;
+}
+```
+
+Whappi has `trustProxy` enabled, so `req.protocol` and the Help page examples will correctly show `https://` when behind a proxy.
 
 ## Environment Variables
 
