@@ -34,7 +34,7 @@ npm start
 
 The setup wizard installs dependencies, builds the project and creates a `.env` file with a generated API key.
 
-Open `http://localhost:3100/admin`, log in and scan the QR code to connect WhatsApp.
+Open `http://&lt;your-domain&gt;:3100/admin`, log in and scan the QR code to connect WhatsApp.
 
 ## Manual Installation
 
@@ -52,7 +52,7 @@ npm start
 ### POST /api/send
 
 ```bash
-curl -X POST http://localhost:3100/api/send \
+curl -X POST http://&lt;your-domain&gt;:3100/api/send \
   -H "Content-Type: application/json" \
   -H "x-api-key: <YOUR_API_KEY>" \
   -d '{"to":"31612345678","message":"Hallo!"}'
